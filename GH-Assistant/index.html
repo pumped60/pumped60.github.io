@@ -202,6 +202,29 @@ details p { font-size: .92rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 #print-area { display: none; }
 
+.chart-details { margin-top: 1rem; }
+.chart-details fieldset { border: 1px solid var(--border); border-radius: 10px; margin: .75rem 0 0; padding: .25rem .9rem .9rem; min-width: 0; }
+.chart-details legend { font-weight: 600; padding: 0 .3rem; }
+.chart-details .fields { margin-top: .4rem; }
+.chart-details .wide { grid-column: 1 / -1; }
+.chart-details .block { display: block; margin-top: .75rem; }
+.chart-details .block span { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); margin-bottom: .2rem; text-transform: uppercase; letter-spacing: .03em; }
+.med-list .item { flex-wrap: wrap; }
+.med-list .item > span:first-child { flex: 1 1 16rem; min-width: 0; }
+.med-ctl { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+.med-ctl select { min-width: 0; width: auto; padding: .35rem .5rem; font-size: .85rem; }
+.med-ctl input { width: 12rem; max-width: 100%; padding: .35rem .5rem; font-size: .85rem; }
+.med-list li.stopped .item > span:first-child { color: var(--muted); text-decoration: line-through; }
+/* The chart note preview looks like the pasted note: a document on white. */
+.chart-preview {
+  margin: .75rem 0 0; padding: 1rem 1.1rem; border-radius: 10px; border: 1px solid var(--border);
+  background: #fff; color: #111; font: .92rem/1.45 Arial, Helvetica, sans-serif; overflow-x: auto;
+}
+.chart-preview p { margin: 0 0 .8rem; }
+.chart-preview table { margin: 0 0 .8rem; font-size: inherit; }
+.chart-preview th, .chart-preview td { color: inherit; font-size: inherit; text-transform: none; letter-spacing: 0; white-space: normal; }
+.chart-preview th { font-weight: bold; }
+
 .group { margin-top: 1.25rem; }
 .group h3 { display: flex; align-items: baseline; gap: .5rem; padding-bottom: .4rem; border-bottom: 2px solid var(--accent); }
 .group h3 .count { color: var(--muted); font-weight: 400; font-size: .85rem; }
@@ -218,6 +241,7 @@ td.notes { color: var(--muted); font-size: .82rem; }
 @media print {
   /* "Print summary": only the plain-text summary goes on the page. */
   body.printing > :not(#print-area) { display: none !important; }
+  body.printing #print-area.rich { white-space: normal; font: 11pt/1.45 Arial, Helvetica, sans-serif; }
   body.printing #print-area {
     display: block; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
     font: 11pt/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #000;
@@ -323,15 +347,42 @@ td.notes { color: var(--muted); font-size: .82rem; }
         <ol id="med-list" class="med-list"></ol>
         <p id="med-list-empty" class="hint">Scanned medications you add will appear here. They are saved in this browser only. Use "Clear list" between patients.</p>
 
+        <details id="chart-details" class="chart-details">
+          <summary>Patient details for the chart note</summary>
+          <p class="hint">Optional. These fill the Pharmacy, Allergies and Imaging parts of the Patient Medication List. "Clear list" empties them too.</p>
+          <fieldset>
+            <legend>Pharmacy</legend>
+            <div class="fields">
+              <label><span>Name</span><input id="c-ph-name" autocomplete="off"></label>
+              <label><span>Phone #</span><input id="c-ph-phone" autocomplete="off" inputmode="tel"></label>
+              <label class="wide"><span>Address</span><input id="c-ph-address" autocomplete="off"></label>
+              <label class="wide"><span>Cross streets</span><input id="c-ph-cross" autocomplete="off"></label>
+            </div>
+          </fieldset>
+          <label class="block"><span>Allergies (to medications or other)</span><textarea id="c-allergies" rows="2"></textarea></label>
+          <fieldset>
+            <legend>Imaging</legend>
+            <div class="fields">
+              <label><span>Colonoscopy: date last completed</span><input id="c-colo-last" autocomplete="off" placeholder="MM/DD/YYYY"></label>
+              <label><span>Colonoscopy: date next due</span><input id="c-colo-next" autocomplete="off" placeholder="MM/DD/YYYY"></label>
+              <label><span>Mammogram: date last completed</span><input id="c-mammo-last" autocomplete="off" placeholder="MM/DD/YYYY"></label>
+              <label><span>Mammogram: date next due</span><input id="c-mammo-next" autocomplete="off" placeholder="MM/DD/YYYY"></label>
+            </div>
+          </fieldset>
+        </details>
+
         <div id="intake-block" class="intake" hidden>
           <div class="row between wrap">
             <h3>Intake summary</h3>
             <div class="segmented" role="group" aria-label="Summary style">
               <button data-style="compact" class="small">Compact</button>
               <button data-style="detailed" class="small">Detailed</button>
+              <button data-style="chart" class="small">Chart note</button>
             </div>
           </div>
+          <p id="chart-hint" class="hint" hidden>Laid out like the Patient Medication List template. Copy it, then paste into the note: headings and the imaging table keep their formatting.</p>
           <pre id="intake-text" class="intake-text" tabindex="0"></pre>
+          <div id="chart-preview" class="chart-preview" tabindex="0" hidden></div>
           <div class="row wrap">
             <button id="copy-intake" class="primary">Copy summary</button>
             <button id="print-intake" class="ghost">Print summary</button>
@@ -370,7 +421,8 @@ td.notes { color: var(--muted); font-size: .82rem; }
           </div>
         </div>
         <div class="row wrap">
-          <button id="copy-providers" class="primary small">Copy summary</button>
+          <button id="copy-contacts" class="primary small" title="Laid out like the Provider Contact List template">Copy contact list</button>
+          <button id="copy-providers" class="ghost small">Copy summary</button>
           <button id="print-providers" class="ghost small">Print summary</button>
           <button id="export-csv" class="ghost small">Download CSV</button>
           <button id="copy-tsv" class="ghost small">Copy for Excel / Sheets</button>
@@ -383,7 +435,7 @@ td.notes { color: var(--muted); font-size: .82rem; }
   </main>
 
   <!-- Filled just before printing so only the summary is printed. -->
-  <pre id="print-area"></pre>
+  <div id="print-area"></div>
 <script>
 (() => {
   // public/lib/drug-reference.js
@@ -930,9 +982,9 @@ td.notes { color: var(--muted); font-size: .82rem; }
   function mapHeader(header) {
     const map = {};
     header.forEach((h, i) => {
-      const clean = h.replace(/[_*]/g, " ").replace(/\s+/g, " ").trim();
+      const clean2 = h.replace(/[_*]/g, " ").replace(/\s+/g, " ").trim();
       for (const [key, re] of HEADER_MAP) {
-        if (re.test(clean) && map[key] === void 0) {
+        if (re.test(clean2) && map[key] === void 0) {
           map[key] = i;
           return;
         }
@@ -1165,11 +1217,11 @@ td.notes { color: var(--muted); font-size: .82rem; }
     return [...groups.entries()].sort(([a], [b]) => (a === "Unspecified") - (b === "Unspecified") || a.localeCompare(b)).map(([category, rows]) => ({ category, rows: rows.sort((x, y) => lastName(x.name).localeCompare(lastName(y.name))) }));
   }
   function toCSV(list) {
-    const esc2 = (v) => /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
+    const esc3 = (v) => /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
     const header = ["Category", ...FIELDS.map((f) => FIELD_LABELS[f]), "Notes"];
     const lines = [header.join(",")];
     for (const g of groupBySpecialty(list)) {
-      for (const p of g.rows) lines.push([g.category, ...FIELDS.map((f) => p[f]), p.notes || ""].map((v) => esc2(v || "")).join(","));
+      for (const p of g.rows) lines.push([g.category, ...FIELDS.map((f) => p[f]), p.notes || ""].map((v) => esc3(v || "")).join(","));
     }
     return lines.join("\n");
   }
@@ -1496,9 +1548,118 @@ ${chunk}
     }
   }
 
+  // public/lib/chart-format.js
+  var esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  var clean = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+  var MED_STATUS = { daily: "Daily", prn: "PRN", stopped: "Discontinued" };
+  function defaultStatus(m) {
+    return /\bas needed\b/i.test(m.frequency || "") ? "prn" : "daily";
+  }
+  var statusOf = (m) => m.status || defaultStatus(m);
+  function chartMedLine(m) {
+    if (m.summary && !m.name) return clean(m.summary);
+    const base = formatSummary({ ...m, use: "" });
+    return clean(m.use ? `${base} - ${m.use}` : base);
+  }
+  function stoppedLine(m) {
+    const what = m.summary && !m.name ? clean(m.summary) : clean([m.name, m.strength].filter(Boolean).join(" "));
+    return m.stopReason ? `${what} (${clean(m.stopReason)})` : what;
+  }
+  var IMAGING = [["colonoscopy", "Colonoscopy"], ["mammogram", "Mammogram"]];
+  function medicationListNote(chart2 = {}, meds2 = []) {
+    const ph = chart2.pharmacy || {};
+    const img = chart2.imaging || {};
+    const daily = meds2.filter((m) => statusOf(m) === "daily").map(chartMedLine);
+    const prn = meds2.filter((m) => statusOf(m) === "prn").map(chartMedLine);
+    const stopped = meds2.filter((m) => statusOf(m) === "stopped").map(stoppedLine);
+    const pharm = [["Name", ph.name], ["Address", ph.address], ["Phone #", ph.phone], ["Cross Streets", ph.cross]];
+    const text = [
+      "Patient Medication List",
+      "",
+      "Pharmacy:",
+      ...pharm.map(([k, v]) => `${k}: ${clean(v)}`.trimEnd()),
+      "",
+      `Allergies (to medications or other): ${clean(chart2.allergies)}`.trimEnd(),
+      "",
+      "Imaging:",
+      ...IMAGING.map(([k, label]) => `${label} - Date Last Completed: ${clean(img[k]?.last)} - Date Next Due: ${clean(img[k]?.next)}`.replace(/: (?= -|$)/g, ":")),
+      "",
+      "Daily:",
+      ...daily,
+      "",
+      "PRN:",
+      ...prn,
+      "",
+      "Discontinued Medications (Reason):",
+      ...stopped
+    ].join("\n");
+    const lines = (list) => list.map((l) => `<br>${esc(l)}`).join("");
+    const cell = "border:1px solid #999;padding:4px 8px;vertical-align:top";
+    const html = [
+      `<p><b><span style="font-size:20pt">Patient Medication List</span></b></p>`,
+      `<p><b><u>Pharmacy:</u></b>${pharm.map(([k, v]) => `<br>${k}: ${esc(clean(v))}`).join("")}</p>`,
+      `<p><b><u>Allergies</u></b> (to medications or other): ${esc(clean(chart2.allergies))}</p>`,
+      `<p><b><u>Imaging:</u></b></p>`,
+      `<table style="border-collapse:collapse;width:100%"><tr><th style="${cell}"></th><th style="${cell};text-align:left">Date Last Completed</th><th style="${cell};text-align:left">Date Next Due</th></tr>`,
+      ...IMAGING.map(([k, label]) => `<tr><td style="${cell}"><b>${label}</b></td><td style="${cell}">${esc(clean(img[k]?.last))}</td><td style="${cell}">${esc(clean(img[k]?.next))}</td></tr>`),
+      `</table>`,
+      `<p><b>Daily:</b>${lines(daily)}</p>`,
+      `<p><b>PRN:</b>${lines(prn)}</p>`,
+      `<p><b><u>Discontinued Medications (Reason):</u></b>${lines(stopped)}</p>`
+    ].join("\n");
+    return { html, text };
+  }
+  var STATE_ZIP = /^(.*?)[\s,]+([A-Z]{2})\.?,?\s+(\d{5}(?:-\d{4})?)\s*$/;
+  var STREET_END = /^(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|ct|court|pl|place|pkwy|parkway|hwy|highway|cir|circle|ter|terrace|trl|trail|sq|square|loop|pike|plaza)\.?$/i;
+  var UNIT = /^(suite|ste\.?|unit|bldg\.?|building|floor|fl\.?|room|rm\.?|box|#)$/i;
+  function splitAddress(location2) {
+    const loc = clean(location2);
+    const m = loc.match(STATE_ZIP);
+    if (!m) return { street: loc, city: "" };
+    const before = m[1].replace(/,\s*$/, "");
+    let street, town;
+    const comma = before.lastIndexOf(",");
+    if (comma !== -1) {
+      street = before.slice(0, comma);
+      town = before.slice(comma + 1);
+    } else {
+      const w = before.split(" ");
+      let k = -1;
+      w.forEach((word, i) => {
+        if (STREET_END.test(word)) k = i;
+        if (UNIT.test(word) && i + 1 < w.length) k = i + 1;
+      });
+      street = k === -1 ? "" : w.slice(0, k + 1).join(" ");
+      town = k === -1 ? before : w.slice(k + 1).join(" ");
+    }
+    return { street: street.replace(/[\s,]+$/, ""), city: `${town.trim()}, ${m[2]} ${m[3]}`.replace(/^, /, "") };
+  }
+  function contactLines(p, category) {
+    const { street, city } = splitAddress(p.location);
+    const specialty = p.specialty || (category && category !== "Unspecified" ? category : "");
+    return { specialty: clean(specialty), rest: [p.name, street, city, p.phone, p.fax && `Fax: ${p.fax}`].map(clean).filter(Boolean) };
+  }
+  function providerContactList(groups) {
+    const cells = groups.flatMap((g) => g.rows.map((p) => contactLines(p, g.category)));
+    const text = ["Provider Contact List", "", ...cells.map((c) => [c.specialty, ...c.rest].filter(Boolean).join("\n") + "\n")].join("\n").trimEnd();
+    const cell = "border:1px solid #999;padding:6px 8px;vertical-align:top;width:50%";
+    const rows = [];
+    for (let i = 0; i < cells.length; i += 2) {
+      const td = (c) => c ? `<td style="${cell}"><b>${esc(c.specialty)}</b>${c.rest.map((l) => `<br>${esc(l)}`).join("")}</td>` : `<td style="${cell}"></td>`;
+      rows.push(`<tr>${td(cells[i])}${td(cells[i + 1])}</tr>`);
+    }
+    const html = [
+      `<p><span style="font-size:20pt">Provider Contact List</span></p>`,
+      `<table style="border-collapse:collapse;width:100%">`,
+      ...rows,
+      `</table>`
+    ].join("\n");
+    return { html, text };
+  }
+
   // public/app.js
   var $ = (id) => document.getElementById(id);
-  var esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  var esc2 = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var store = {
     get(key, fallback) {
       try {
@@ -1543,8 +1704,42 @@ ${chunk}
     ta.remove();
     flash(button, ok ? "Copied" : "Press Ctrl+C to copy");
   }
+  async function copyRich({ html, text }, button) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([text], { type: "text/plain" })
+      })]);
+      return flash(button, "Copied");
+    } catch {
+    }
+    const box = Object.assign(document.createElement("div"), { innerHTML: html });
+    box.style.cssText = "position:fixed;top:0;left:-9999px;background:#fff;color:#000";
+    document.body.append(box);
+    const range = document.createRange();
+    range.selectNodeContents(box);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch {
+    }
+    sel.removeAllRanges();
+    box.remove();
+    if (ok) flash(button, "Copied");
+    else copyText(text, button);
+  }
   function printText(text) {
+    $("print-area").className = "";
     $("print-area").textContent = text;
+    document.body.classList.add("printing");
+    window.print();
+  }
+  function printHtml(html) {
+    $("print-area").className = "rich";
+    $("print-area").innerHTML = html;
     document.body.classList.add("printing");
     window.print();
   }
@@ -1712,8 +1907,8 @@ ${chunk}
   function renderUses() {
     const uses = current.uses || [];
     $("uses-block").hidden = !uses.length;
-    $("uses").innerHTML = uses.map((u, i) => `<button class="chip" data-i="${i}">${esc(u)}</button>`).join("");
-    $("use-options").innerHTML = [current.purpose, ...uses.map(shortUse)].filter(Boolean).map((u) => `<option value="${esc(u)}">`).join("");
+    $("uses").innerHTML = uses.map((u, i) => `<button class="chip" data-i="${i}">${esc2(u)}</button>`).join("");
+    $("use-options").innerHTML = [current.purpose, ...uses.map(shortUse)].filter(Boolean).map((u) => `<option value="${esc2(u)}">`).join("");
     markSelectedUse();
   }
   function markSelectedUse() {
@@ -1748,12 +1943,51 @@ ${chunk}
   var meds = store.get("meds", []).map(toEntry);
   var intakeStyle = store.get("intakeStyle", "compact");
   var lineOf = (m) => m.summary || formatSummary(m);
+  var CHART_FIELDS = {
+    "c-ph-name": ["pharmacy", "name"],
+    "c-ph-address": ["pharmacy", "address"],
+    "c-ph-phone": ["pharmacy", "phone"],
+    "c-ph-cross": ["pharmacy", "cross"],
+    "c-allergies": ["allergies"],
+    "c-colo-last": ["imaging", "colonoscopy", "last"],
+    "c-colo-next": ["imaging", "colonoscopy", "next"],
+    "c-mammo-last": ["imaging", "mammogram", "last"],
+    "c-mammo-next": ["imaging", "mammogram", "next"]
+  };
+  var chart = store.get("chart", {});
+  var chartGet = (path) => path.reduce((o, k) => o?.[k], chart) || "";
+  function chartSet(path, value) {
+    let o = chart;
+    for (const k of path.slice(0, -1)) o = o[k] ?? (o[k] = {});
+    o[path.at(-1)] = value;
+  }
+  function fillChartFields() {
+    for (const [id, path] of Object.entries(CHART_FIELDS)) $(id).value = chartGet(path);
+  }
+  fillChartFields();
+  for (const [id, path] of Object.entries(CHART_FIELDS)) {
+    $(id).addEventListener("input", (e) => {
+      chartSet(path, e.target.value);
+      store.set("chart", chart);
+      renderIntake();
+    });
+  }
+  var statusSelect = (m, i) => `<select data-status="${i}" aria-label="List under">${Object.entries(MED_STATUS).map(([k, label]) => `<option value="${k}"${statusOf(m) === k ? " selected" : ""}>${label}</option>`).join("")}</select>`;
   function renderMeds() {
-    $("med-list").innerHTML = meds.map((m, i) => `<li><div class="item"><span>${esc(lineOf(m))}${m.flag ? ' <span class="flag">verify</span>' : ""}</span><button class="ghost small" data-remove="${i}" aria-label="Remove">Remove</button></div></li>`).join("");
+    $("med-list").innerHTML = meds.map((m, i) => `<li class="${statusOf(m) === "stopped" ? "stopped" : ""}"><div class="item"><span>${esc2(lineOf(m))}${m.flag ? ' <span class="flag">verify</span>' : ""}</span>
+      <span class="med-ctl">${statusSelect(m, i)}${statusOf(m) === "stopped" ? `<input data-reason="${i}" placeholder="Reason stopped" value="${esc2(m.stopReason || "")}" aria-label="Reason stopped">` : ""}
+      <button class="ghost small" data-remove="${i}" aria-label="Remove">Remove</button></span></div></li>`).join("");
     $("med-list-empty").hidden = meds.length > 0;
     $("clear-list").hidden = $("intake-block").hidden = meds.length === 0;
+    renderIntake();
+  }
+  function renderIntake() {
     document.querySelectorAll(".segmented button").forEach((b) => b.classList.toggle("selected", b.dataset.style === intakeStyle));
-    $("intake-text").textContent = formatMedIntake(meds, { style: intakeStyle });
+    const chartMode = intakeStyle === "chart";
+    $("chart-hint").hidden = $("chart-preview").hidden = !chartMode;
+    $("intake-text").hidden = chartMode;
+    if (chartMode) $("chart-preview").innerHTML = medicationListNote(chart, meds).html;
+    else $("intake-text").textContent = formatMedIntake(meds, { style: intakeStyle });
   }
   renderMeds();
   function saveMeds() {
@@ -1767,7 +2001,7 @@ ${chunk}
     const entry = { name, strength, form, amount, frequency, timing, use, purpose, drugClass, directions, flag: !$("purpose-warning").hidden };
     const i = meds.findIndex((m) => lineOf(m) === line);
     if (i === -1) meds.push(entry);
-    else meds[i] = entry;
+    else meds[i] = { ...entry, status: meds[i].status, stopReason: meds[i].stopReason };
     saveMeds();
     $("med-list-card").scrollIntoView({ behavior: "smooth" });
   });
@@ -1776,6 +2010,20 @@ ${chunk}
     if (i === void 0) return;
     meds.splice(Number(i), 1);
     saveMeds();
+  });
+  $("med-list").addEventListener("change", (e) => {
+    const i = e.target.dataset.status;
+    if (i === void 0) return;
+    meds[i].status = e.target.value;
+    saveMeds();
+    if (e.target.value === "stopped") $("med-list").querySelector(`[data-reason="${i}"]`)?.focus();
+  });
+  $("med-list").addEventListener("input", (e) => {
+    const i = e.target.dataset.reason;
+    if (i === void 0) return;
+    meds[i].stopReason = e.target.value;
+    store.set("meds", meds);
+    renderIntake();
   });
   var clearArmed = null;
   $("clear-list").addEventListener("click", (e) => {
@@ -1791,17 +2039,27 @@ ${chunk}
     clearArmed = null;
     e.target.textContent = "Clear list";
     meds = [];
+    chart = {};
+    store.set("chart", chart);
+    fillChartFields();
     saveMeds();
   });
   document.querySelectorAll(".segmented button").forEach(
     (b) => b.addEventListener("click", () => {
       intakeStyle = b.dataset.style;
       store.set("intakeStyle", intakeStyle);
-      renderMeds();
+      if (intakeStyle === "chart") $("chart-details").open = true;
+      renderIntake();
     })
   );
-  $("copy-intake").addEventListener("click", (e) => copyText($("intake-text").textContent, e.target));
-  $("print-intake").addEventListener("click", () => printText($("intake-text").textContent));
+  $("copy-intake").addEventListener("click", (e) => {
+    if (intakeStyle === "chart") copyRich(medicationListNote(chart, meds), e.target);
+    else copyText($("intake-text").textContent, e.target);
+  });
+  $("print-intake").addEventListener("click", () => {
+    if (intakeStyle === "chart") printHtml(medicationListNote(chart, meds).html);
+    else printText($("intake-text").textContent);
+  });
   var providers = [];
   $("provider-file").addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -1855,7 +2113,7 @@ ${chunk}
     const groups = groupBySpecialty(providers);
     const select = $("provider-category");
     const chosen = select.value;
-    select.innerHTML = `<option value="">All specialties (${groups.length})</option>` + groups.map((g) => `<option value="${esc(g.category)}">${esc(g.category)} (${g.rows.length})</option>`).join("");
+    select.innerHTML = `<option value="">All specialties (${groups.length})</option>` + groups.map((g) => `<option value="${esc2(g.category)}">${esc2(g.category)} (${g.rows.length})</option>`).join("");
     select.value = groups.some((g) => g.category === chosen) ? chosen : "";
     const incomplete = providers.filter((p) => p.missing.length).length;
     $("provider-stats").textContent = `${providers.length} providers \xB7 ${groups.length} specialties` + (incomplete ? ` \xB7 ${incomplete} missing some details` : "");
@@ -1863,10 +2121,10 @@ ${chunk}
     const cols = [...FIELDS, "notes"];
     $("provider-groups").innerHTML = groupBySpecialty([...shown]).map((g) => `
       <div class="group">
-        <h3>${esc(g.category)} <span class="count">${g.rows.length}</span></h3>
+        <h3>${esc2(g.category)} <span class="count">${g.rows.length}</span></h3>
         <div class="table-wrap"><table>
-          <thead><tr>${cols.map((c) => `<th>${esc(FIELD_LABELS[c] || "Notes")}</th>`).join("")}<th><span class="sr-only">Copy</span></th></tr></thead>
-          <tbody>${g.rows.map((p) => `<tr data-i="${providers.indexOf(p)}">${cols.map((c) => `<td class="${c}${c !== "notes" && !p[c] ? " missing" : ""}" data-field="${c}" contenteditable="true" spellcheck="false">${esc(p[c])}</td>`).join("")}<td><button class="ghost small" data-copy-row>Copy</button></td></tr>`).join("")}</tbody>
+          <thead><tr>${cols.map((c) => `<th>${esc2(FIELD_LABELS[c] || "Notes")}</th>`).join("")}<th><span class="sr-only">Copy</span></th></tr></thead>
+          <tbody>${g.rows.map((p) => `<tr data-i="${providers.indexOf(p)}">${cols.map((c) => `<td class="${c}${c !== "notes" && !p[c] ? " missing" : ""}" data-field="${c}" contenteditable="true" spellcheck="false">${esc2(p[c])}</td>`).join("")}<td><button class="ghost small" data-copy-row>Copy</button></td></tr>`).join("")}</tbody>
         </table></div>
       </div>`).join("") || `<p class="hint">No providers match.</p>`;
   }
@@ -1903,6 +2161,7 @@ ${chunk}
   });
   var providerSummary = () => formatProviderIntake(groupBySpecialty(visibleProviders()));
   $("copy-providers").addEventListener("click", (e) => copyText(providerSummary(), e.target));
+  $("copy-contacts").addEventListener("click", (e) => copyRich(providerContactList(groupBySpecialty(visibleProviders())), e.target));
   $("print-providers").addEventListener("click", () => printText(providerSummary()));
   var SAMPLE = `Dr. Jane Smith, MD - Cardiology - Springfield Heart Center, 123 Main St, Suite 200, Springfield, IL 62701 - Phone: (217) 555-1234 - Fax: (217) 555-1235
 Robert Lee, DO, Orthopedic Surgery | 45 Oak Avenue, Bldg B, Peoria, IL 61602 | P: 309.555.0100 | F: 309.555.0101
