@@ -225,6 +225,18 @@ details p { font-size: .92rem; }
 .chart-preview th, .chart-preview td { color: inherit; font-size: inherit; text-transform: none; letter-spacing: 0; white-space: normal; }
 .chart-preview th { font-weight: bold; }
 
+.ck-bar { height: 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; margin: .5rem 0 .25rem; }
+#ck-fill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+@media (prefers-reduced-motion: reduce) { #ck-fill { transition: none; } }
+.ck-list { border: 1px solid var(--border); border-radius: 10px; margin: 1rem 0 0; padding: .25rem .9rem .5rem; min-width: 0; }
+.ck-list legend { font-weight: 600; padding: 0 .3rem; }
+.ck-item { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .75rem; padding: .45rem 0; border-bottom: 1px solid var(--border); }
+.ck-item:last-child { border-bottom: 0; }
+.ck-item label { display: flex; align-items: center; gap: .6rem; flex: 1 1 15rem; min-width: 0; cursor: pointer; padding: .2rem 0; }
+.ck-item input[type="checkbox"] { width: 1.25rem; height: 1.25rem; accent-color: var(--accent); flex: none; margin: 0; }
+.ck-item.done label span { color: var(--muted); text-decoration: line-through; }
+.ck-item input[type="text"] { flex: 1 1 12rem; width: auto; min-width: 0; padding: .35rem .55rem; font-size: .85rem; }
+
 .group { margin-top: 1.25rem; }
 .group h3 { display: flex; align-items: baseline; gap: .5rem; padding-bottom: .4rem; border-bottom: 2px solid var(--accent); }
 .group h3 .count { color: var(--muted); font-weight: 400; font-size: .85rem; }
@@ -270,6 +282,7 @@ td.notes { color: var(--muted); font-size: .82rem; }
   <nav class="tabs" role="tablist">
     <button class="tab active" role="tab" aria-selected="true" data-tab="meds">Medication Scanner</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="providers">Provider Organizer</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="checklist">Intake Checklist</button>
   </nav>
 
   <main>
@@ -430,6 +443,26 @@ td.notes { color: var(--muted); font-size: .82rem; }
         </div>
         <p class="hint">Click any cell to correct it. Highlighted cells were not found in the source. "Copy" on a row copies that one provider. The summary and print include only the providers shown by your search and filters.</p>
         <div id="provider-groups"></div>
+      </div>
+    </section>
+
+    <!-- ================= Intake checklist ================= -->
+    <section id="tab-checklist" class="panel" role="tabpanel" hidden>
+      <div class="card">
+        <div class="row between wrap">
+          <div>
+            <h2>Intake checklist</h2>
+            <p id="ck-progress" class="hint"></p>
+          </div>
+          <button id="ck-reset" class="ghost small">Start a new intake</button>
+        </div>
+        <div class="ck-bar" aria-hidden="true"><div id="ck-fill"></div></div>
+        <div id="ck-lists"></div>
+        <p class="hint">Saved in this browser only. "Start a new intake" clears every box and note.</p>
+        <div class="row wrap">
+          <button id="copy-checklist" class="primary">Copy checklist</button>
+          <button id="print-checklist" class="ghost">Print checklist</button>
+        </div>
       </div>
     </section>
   </main>
@@ -982,9 +1015,9 @@ td.notes { color: var(--muted); font-size: .82rem; }
   function mapHeader(header) {
     const map = {};
     header.forEach((h, i) => {
-      const clean2 = h.replace(/[_*]/g, " ").replace(/\s+/g, " ").trim();
+      const clean3 = h.replace(/[_*]/g, " ").replace(/\s+/g, " ").trim();
       for (const [key, re] of HEADER_MAP) {
-        if (re.test(clean2) && map[key] === void 0) {
+        if (re.test(clean3) && map[key] === void 0) {
           map[key] = i;
           return;
         }
@@ -1217,11 +1250,11 @@ td.notes { color: var(--muted); font-size: .82rem; }
     return [...groups.entries()].sort(([a], [b]) => (a === "Unspecified") - (b === "Unspecified") || a.localeCompare(b)).map(([category, rows]) => ({ category, rows: rows.sort((x, y) => lastName(x.name).localeCompare(lastName(y.name))) }));
   }
   function toCSV(list) {
-    const esc3 = (v) => /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
+    const esc4 = (v) => /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
     const header = ["Category", ...FIELDS.map((f) => FIELD_LABELS[f]), "Notes"];
     const lines = [header.join(",")];
     for (const g of groupBySpecialty(list)) {
-      for (const p of g.rows) lines.push([g.category, ...FIELDS.map((f) => p[f]), p.notes || ""].map((v) => esc3(v || "")).join(","));
+      for (const p of g.rows) lines.push([g.category, ...FIELDS.map((f) => p[f]), p.notes || ""].map((v) => esc4(v || "")).join(","));
     }
     return lines.join("\n");
   }
@@ -1657,9 +1690,63 @@ ${chunk}
     return { html, text };
   }
 
+  // public/lib/checklist.js
+  var CHECKLISTS = [
+    {
+      id: "tasks",
+      title: "Intake tasks",
+      items: [
+        ["packet", "Complete onboarding packet"],
+        ["intake1", "Intake 1"],
+        ["contract", "Service contract"],
+        ["intake2", "Schedule Intake 2"],
+        ["pm", "PCP / Ethnicity and Race on PM side"],
+        ["peer", "Peer support"],
+        ["pes", "PES"],
+        ["referral", "Email referral source"]
+      ]
+    },
+    {
+      id: "roi",
+      title: "On the ROI (release of information)",
+      items: [
+        ["insurance", "Insurance"],
+        ["gellert", "Gellert Health"],
+        ["pharmacy", "Pharmacy"],
+        ["pcp", "PCP"]
+      ]
+    }
+  ];
+  var itemKey = (list, item) => `${list}:${item}`;
+  function progress(state = {}) {
+    const keys = CHECKLISTS.flatMap((l) => l.items.map(([id]) => itemKey(l.id, id)));
+    return { done: keys.filter((k) => state.checked?.[k]).length, total: keys.length };
+  }
+  var esc2 = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  var clean2 = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+  var BOX = { on: "\u2611", off: "\u2610" };
+  function checklistNote(state = {}) {
+    const line = (list, [id, label]) => {
+      const k = itemKey(list.id, id);
+      const note = clean2(state.notes?.[k]);
+      return { box: state.checked?.[k] ? BOX.on : BOX.off, label, note };
+    };
+    const { done, total } = progress(state);
+    const sections = CHECKLISTS.map((l) => ({ title: l.title, lines: l.items.map((it) => line(l, it)) }));
+    const text = [
+      `Intake Checklist (${done} of ${total} done)`,
+      ...sections.flatMap((s) => ["", `${s.title}:`, ...s.lines.map((l) => `${l.box} ${l.label}${l.note ? ` - ${l.note}` : ""}`)])
+    ].join("\n");
+    const html = [
+      `<p><b><u>Intake Checklist</u></b> (${done} of ${total} done)</p>`,
+      ...sections.map((s) => `<p><b>${esc2(s.title)}:</b>${s.lines.map((l) => `<br>${l.box} ${esc2(l.label)}${l.note ? ` - ${esc2(l.note)}` : ""}`).join("")}</p>`)
+    ].join("\n");
+    return { html, text };
+  }
+
   // public/app.js
   var $ = (id) => document.getElementById(id);
-  var esc2 = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  var esc3 = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var store = {
     get(key, fallback) {
       try {
@@ -1750,15 +1837,15 @@ ${chunk}
         t.classList.toggle("active", t === tab);
         t.setAttribute("aria-selected", t === tab);
       });
-      for (const name of ["meds", "providers"]) $(`tab-${name}`).hidden = tab.dataset.tab !== name;
+      for (const name of ["meds", "providers", "checklist"]) $(`tab-${name}`).hidden = tab.dataset.tab !== name;
       store.set("tab", tab.dataset.tab);
     })
   );
-  if (store.get("tab") === "providers") document.querySelector('[data-tab="providers"]').click();
+  if (["providers", "checklist"].includes(store.get("tab"))) document.querySelector(`[data-tab="${store.get("tab")}"]`).click();
   platformReady.then((platform) => {
     $("mode-badge").textContent = platform.badge;
     $("organize-ai").hidden = !platform.ai;
-    for (const id of ["print-intake", "print-providers"]) $(id).hidden = !platform.canPrint;
+    for (const id of ["print-intake", "print-providers", "print-checklist"]) $(id).hidden = !platform.canPrint;
     if (!platform.canReadPhotos) {
       $("photo-block").hidden = true;
       $("manual").open = true;
@@ -1907,8 +1994,8 @@ ${chunk}
   function renderUses() {
     const uses = current.uses || [];
     $("uses-block").hidden = !uses.length;
-    $("uses").innerHTML = uses.map((u, i) => `<button class="chip" data-i="${i}">${esc2(u)}</button>`).join("");
-    $("use-options").innerHTML = [current.purpose, ...uses.map(shortUse)].filter(Boolean).map((u) => `<option value="${esc2(u)}">`).join("");
+    $("uses").innerHTML = uses.map((u, i) => `<button class="chip" data-i="${i}">${esc3(u)}</button>`).join("");
+    $("use-options").innerHTML = [current.purpose, ...uses.map(shortUse)].filter(Boolean).map((u) => `<option value="${esc3(u)}">`).join("");
     markSelectedUse();
   }
   function markSelectedUse() {
@@ -1974,8 +2061,8 @@ ${chunk}
   }
   var statusSelect = (m, i) => `<select data-status="${i}" aria-label="List under">${Object.entries(MED_STATUS).map(([k, label]) => `<option value="${k}"${statusOf(m) === k ? " selected" : ""}>${label}</option>`).join("")}</select>`;
   function renderMeds() {
-    $("med-list").innerHTML = meds.map((m, i) => `<li class="${statusOf(m) === "stopped" ? "stopped" : ""}"><div class="item"><span>${esc2(lineOf(m))}${m.flag ? ' <span class="flag">verify</span>' : ""}</span>
-      <span class="med-ctl">${statusSelect(m, i)}${statusOf(m) === "stopped" ? `<input data-reason="${i}" placeholder="Reason stopped" value="${esc2(m.stopReason || "")}" aria-label="Reason stopped">` : ""}
+    $("med-list").innerHTML = meds.map((m, i) => `<li class="${statusOf(m) === "stopped" ? "stopped" : ""}"><div class="item"><span>${esc3(lineOf(m))}${m.flag ? ' <span class="flag">verify</span>' : ""}</span>
+      <span class="med-ctl">${statusSelect(m, i)}${statusOf(m) === "stopped" ? `<input data-reason="${i}" placeholder="Reason stopped" value="${esc3(m.stopReason || "")}" aria-label="Reason stopped">` : ""}
       <button class="ghost small" data-remove="${i}" aria-label="Remove">Remove</button></span></div></li>`).join("");
     $("med-list-empty").hidden = meds.length > 0;
     $("clear-list").hidden = $("intake-block").hidden = meds.length === 0;
@@ -2113,7 +2200,7 @@ ${chunk}
     const groups = groupBySpecialty(providers);
     const select = $("provider-category");
     const chosen = select.value;
-    select.innerHTML = `<option value="">All specialties (${groups.length})</option>` + groups.map((g) => `<option value="${esc2(g.category)}">${esc2(g.category)} (${g.rows.length})</option>`).join("");
+    select.innerHTML = `<option value="">All specialties (${groups.length})</option>` + groups.map((g) => `<option value="${esc3(g.category)}">${esc3(g.category)} (${g.rows.length})</option>`).join("");
     select.value = groups.some((g) => g.category === chosen) ? chosen : "";
     const incomplete = providers.filter((p) => p.missing.length).length;
     $("provider-stats").textContent = `${providers.length} providers \xB7 ${groups.length} specialties` + (incomplete ? ` \xB7 ${incomplete} missing some details` : "");
@@ -2121,10 +2208,10 @@ ${chunk}
     const cols = [...FIELDS, "notes"];
     $("provider-groups").innerHTML = groupBySpecialty([...shown]).map((g) => `
       <div class="group">
-        <h3>${esc2(g.category)} <span class="count">${g.rows.length}</span></h3>
+        <h3>${esc3(g.category)} <span class="count">${g.rows.length}</span></h3>
         <div class="table-wrap"><table>
-          <thead><tr>${cols.map((c) => `<th>${esc2(FIELD_LABELS[c] || "Notes")}</th>`).join("")}<th><span class="sr-only">Copy</span></th></tr></thead>
-          <tbody>${g.rows.map((p) => `<tr data-i="${providers.indexOf(p)}">${cols.map((c) => `<td class="${c}${c !== "notes" && !p[c] ? " missing" : ""}" data-field="${c}" contenteditable="true" spellcheck="false">${esc2(p[c])}</td>`).join("")}<td><button class="ghost small" data-copy-row>Copy</button></td></tr>`).join("")}</tbody>
+          <thead><tr>${cols.map((c) => `<th>${esc3(FIELD_LABELS[c] || "Notes")}</th>`).join("")}<th><span class="sr-only">Copy</span></th></tr></thead>
+          <tbody>${g.rows.map((p) => `<tr data-i="${providers.indexOf(p)}">${cols.map((c) => `<td class="${c}${c !== "notes" && !p[c] ? " missing" : ""}" data-field="${c}" contenteditable="true" spellcheck="false">${esc3(p[c])}</td>`).join("")}<td><button class="ghost small" data-copy-row>Copy</button></td></tr>`).join("")}</tbody>
         </table></div>
       </div>`).join("") || `<p class="hint">No providers match.</p>`;
   }
@@ -2163,6 +2250,61 @@ ${chunk}
   $("copy-providers").addEventListener("click", (e) => copyText(providerSummary(), e.target));
   $("copy-contacts").addEventListener("click", (e) => copyRich(providerContactList(groupBySpecialty(visibleProviders())), e.target));
   $("print-providers").addEventListener("click", () => printText(providerSummary()));
+  var ck = store.get("checklist", {});
+  ck.checked ?? (ck.checked = {});
+  ck.notes ?? (ck.notes = {});
+  function renderChecklist() {
+    $("ck-lists").innerHTML = CHECKLISTS.map((list) => `
+    <fieldset class="ck-list"><legend>${esc3(list.title)}</legend>
+      ${list.items.map(([id, label]) => {
+      const k = itemKey(list.id, id);
+      return `<div class="ck-item${ck.checked[k] ? " done" : ""}">
+          <label><input type="checkbox" data-ck="${k}"${ck.checked[k] ? " checked" : ""}><span>${esc3(label)}</span></label>
+          <input type="text" data-ck-note="${k}" value="${esc3(ck.notes[k] || "")}" placeholder="Note (optional)" aria-label="Note for ${esc3(label)}" autocomplete="off">
+        </div>`;
+    }).join("")}
+    </fieldset>`).join("");
+    renderCkProgress();
+  }
+  function renderCkProgress() {
+    const { done, total } = progress(ck);
+    $("ck-progress").textContent = `${done} of ${total} done`;
+    $("ck-fill").style.width = `${done / total * 100}%`;
+  }
+  renderChecklist();
+  $("ck-lists").addEventListener("change", (e) => {
+    const k = e.target.dataset.ck;
+    if (!k) return;
+    ck.checked[k] = e.target.checked;
+    store.set("checklist", ck);
+    e.target.closest(".ck-item").classList.toggle("done", e.target.checked);
+    renderCkProgress();
+  });
+  $("ck-lists").addEventListener("input", (e) => {
+    const k = e.target.dataset.ckNote;
+    if (!k) return;
+    ck.notes[k] = e.target.value;
+    store.set("checklist", ck);
+  });
+  var ckArmed = null;
+  $("ck-reset").addEventListener("click", (e) => {
+    if (!ckArmed) {
+      e.target.textContent = "Tap again to clear";
+      ckArmed = setTimeout(() => {
+        ckArmed = null;
+        e.target.textContent = "Start a new intake";
+      }, 3e3);
+      return;
+    }
+    clearTimeout(ckArmed);
+    ckArmed = null;
+    e.target.textContent = "Start a new intake";
+    ck = { checked: {}, notes: {} };
+    store.set("checklist", ck);
+    renderChecklist();
+  });
+  $("copy-checklist").addEventListener("click", (e) => copyRich(checklistNote(ck), e.target));
+  $("print-checklist").addEventListener("click", () => printHtml(checklistNote(ck).html));
   var SAMPLE = `Dr. Jane Smith, MD - Cardiology - Springfield Heart Center, 123 Main St, Suite 200, Springfield, IL 62701 - Phone: (217) 555-1234 - Fax: (217) 555-1235
 Robert Lee, DO, Orthopedic Surgery | 45 Oak Avenue, Bldg B, Peoria, IL 61602 | P: 309.555.0100 | F: 309.555.0101
 Maria Gonzalez, NP-C; Family Medicine; 9 Elm Rd, Champaign, IL 61820; 217-555-9000; fax 217-555-9001
